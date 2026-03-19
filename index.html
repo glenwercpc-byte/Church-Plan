@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>시카고 언약 장로교회 일정표</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap');
+        body { font-family: 'Noto Sans KR', sans-serif; background-color: #f8fafc; margin: 0; padding: 0; }
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
+        .day-cell { min-height: 140px; transition: all 0.2s; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; position: relative; }
+        .day-cell:hover { background-color: #f1f5f9; }
+        .today { background-color: #f0f9ff !important; }
+        .today-mark { position: absolute; top: 8px; right: 8px; width: 6px; height: 6px; background-color: #0ea5e9; border-radius: 50%; }
+        
+        .event-item { 
+            font-size: 0.75rem; 
+            font-weight: 600; 
+            margin-top: 2px; 
+            padding: 2px 4px; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            letter-spacing: -0.02em;
+            transition: background-color 0.2s;
+        }
+        .event-item:hover { background-color: #f1f5f9; }
+        .event-item .delete-btn { opacity: 0; font-size: 10px; margin-left: 4px; transition: opacity 0.2s; }
+        .event-item:hover .delete-btn { opacity: 1; }
+        
+        .event-default { background-color: transparent; color: #334155; border-left: none; }
+        .holiday-label { font-size: 0.65rem; color: #ef4444; font-weight: 700; margin-left: auto; text-align: right; line-height: 1.2; max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        .inline-textarea {
+            width: 100%; font-size: 0.75rem; font-weight: 600; padding: 6px;
+            border: 2px solid #0ea5e9; border-radius: 4px; outline: none;
+            margin-bottom: 4px; resize: none; overflow: hidden; display: block;
+            line-height: 1.4; background-color: #fff;
+        }
+        
+        .calendar-container { 
+            background: white; border-radius: 8px; 
+            width: 100%; overflow: hidden; border: 1px solid #e2e8f0;
+            box-shadow: 0 4px 15px -2px rgb(0 0 0 / 0.1);
+        }
+        
+        #loadingOverlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255,255,255,0.7); display: flex; justify-content: center;
+            align-items: center; z-index: 1000; display: none;
+        }
+
+        #yearInput { background: transparent; border: none; color: #0369a1; width: 70px; font-weight: 800; text-align: center; outline: none; }
+        #yearNotice { display: none; position: absolute; left: 105%; top: 50%; transform: translateY(-50%); white-space: nowrap; background: #334155; color: white; padding: 6px 14px; border-radius: 6px; font-size: 0.8rem; box-shadow: 0 4px 6px rgba(0,0,0,0.2); z-index: 50; }
+
+        .church-logo { height: 40px; width: auto; object-fit: contain; }
+        
+        .month-title-style { 
+            font-size: 0.85rem; 
+            font-weight: 800; 
+            text-transform: uppercase; 
+            letter-spacing: 0.05em; 
+            color: #334155; 
+        }
+
+        .btn-slim {
+            padding-top: 0.35rem;
+            padding-bottom: 0.35rem;
+        }
+    </style>
+</head>
+<body class="bg-slate-50">
+
+<div id="loadingOverlay">
+    <div class="text-sky-600 font-bold flex flex-col items-center">
+        <i class="fas fa-spinner fa-spin text-4xl mb-3"></i>
+        <span class="text-lg">처리 중...</span>
+    </div>
+</div>
+
+<div class="w-full min-h-screen flex flex-col">
+    <!-- Header Section -->
+    <div class="px-2 md:px-4 mt-2 md:mt-4">
+        <div class="bg-sky-100 p-2.5 md:p-4 rounded-xl border border-sky-200 flex flex-col md:flex-row justify-between items-center gap-4 shadow-sm">
+            <div class="flex-1 flex items-center gap-4 w-full md:w-auto">
+                <img src="http://www.chicagocovenant.org/files/2014/10/logo.png" alt="로고" class="church-logo" onerror="this.style.display='none';">
+                <h1 class="text-xl font-bold text-sky-900 tracking-tight whitespace-nowrap">시카고 언약 장로교회 일정표</h1>
+            </div>
+            
+            <div class="flex-1 flex justify-center relative">
+                <div id="yearContainer" class="relative">
+                    <button onclick="enableYearEdit()" class="bg-white hover:bg-sky-50 px-6 py-1.5 rounded-full font-black text-lg transition-all border border-sky-300 shadow-sm flex items-center gap-2 text-sky-800">
+                        <span id="yearContent">
+                            <span id="currentYearText">2026</span>
+                            <i class="fas fa-calendar-alt text-sm text-sky-500 ml-1"></i>
+                        </span>
+                    </button>
+                    <div id="yearNotice">이동할 연도를 입력하세요</div>
+                </div>
+            </div>
+
+            <div class="flex-1 flex justify-end items-center gap-3">
+                <button onclick="openPrintWindow()" class="bg-emerald-600 text-white px-4 btn-slim rounded-xl hover:bg-emerald-700 transition font-bold shadow-md flex items-center gap-2 text-sm">
+                    <i class="fas fa-print"></i> <span id="printBtnText">2026 연중 계획표</span>
+                </button>
+                <button onclick="changeMonth(-1)" class="bg-white p-2.5 rounded-xl border border-sky-300 text-sky-700 hover:bg-sky-50 transition shadow-sm"><i class="fas fa-chevron-left"></i></button>
+                <button onclick="currentDate = new Date(); renderCalendars();" class="text-xs bg-sky-600 text-white px-5 py-2 rounded-xl hover:bg-sky-700 transition font-bold shadow-md uppercase tracking-wider">Today</button>
+                <button onclick="changeMonth(1)" class="bg-white p-2.5 rounded-xl border border-sky-300 text-sky-700 hover:bg-sky-50 transition shadow-sm"><i class="fas fa-chevron-right"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Calendar View -->
+    <div class="p-2 md:p-4 w-full flex-grow">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 w-full h-full">
+            <div class="calendar-container flex flex-col">
+                <div class="bg-slate-50 border-b p-3 text-center"><h2 id="monthTitle1" class="month-title-style"></h2></div>
+                <div class="calendar-grid text-center font-black text-slate-500 bg-slate-100/80 text-[11px] uppercase tracking-widest border-b">
+                    <div class="py-2.5 text-red-600">Sun</div><div class="py-2.5">Mon</div><div class="py-2.5">Tue</div><div class="py-2.5">Wed</div><div class="py-2.5">Thu</div><div class="py-2.5">Fri</div><div class="py-2.5 text-sky-600">Sat</div>
+                </div>
+                <div id="calendarDays1" class="calendar-grid flex-grow"></div>
+            </div>
+            <div class="calendar-container flex flex-col">
+                <div class="bg-slate-50 border-b p-3 text-center"><h2 id="monthTitle2" class="month-title-style"></h2></div>
+                <div class="calendar-grid text-center font-black text-slate-500 bg-slate-100/80 text-[11px] uppercase tracking-widest border-b">
+                    <div class="py-2.5 text-red-600">Sun</div><div class="py-2.5">Mon</div><div class="py-2.5">Tue</div><div class="py-2.5">Wed</div><div class="py-2.5">Thu</div><div class="py-2.5">Fri</div><div class="py-2.5 text-sky-600">Sat</div>
+                </div>
+                <div id="calendarDays2" class="calendar-grid flex-grow"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentDate = new Date(); 
+    let eventsData = {}; 
+
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+    function getHolidays(year) {
+        const holidays = {};
+        const addHoliday = (m, d, name) => {
+            const key = `${year}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            holidays[key] = name;
+        };
+        const getNthDay = (m, dayOfWeek, n) => {
+            let count = 0; let d = 1; let date = new Date(year, m - 1, d);
+            while (date.getMonth() === m - 1) {
+                if (date.getDay() === dayOfWeek) { count++; if (count === n) return d; }
+                d++; date = new Date(year, m - 1, d);
+            }
+        };
+        const getLastDay = (m, dayOfWeek) => {
+            let date = new Date(year, m, 0);
+            while (date.getDay() !== dayOfWeek) { date.setDate(date.getDate() - 1); }
+            return date.getDate();
+        };
+        const a = year % 19; const b = Math.floor(year / 100); const c = year % 100;
+        const d = Math.floor(b / 4); const e = b % 4; const f = Math.floor((b + 8) / 25);
+        const g = Math.floor((b - f + 1) / 3); const h = (19 * a + b - d - g + 15) % 30;
+        const i = Math.floor(c / 4); const k = c % 4; const l = (32 + 2 * e + 2 * i - h - k) % 7;
+        const m_val = Math.floor((a + 11 * h + 22 * l) / 451);
+        const easterMonth = Math.floor((h + l - 7 * m_val + 114) / 31);
+        const easterDay = ((h + l - 7 * m_val + 114) % 31) + 1;
+        const easterDate = new Date(year, easterMonth - 1, easterDay);
+        const goodFridayDate = new Date(easterDate);
+        goodFridayDate.setDate(easterDate.getDate() - 2);
+        addHoliday(easterMonth, easterDay, "Easter Sunday");
+        addHoliday(goodFridayDate.getMonth() + 1, goodFridayDate.getDate(), "Good Friday");
+        addHoliday(1, 1, "New Year's Day");
+        addHoliday(6, 19, "Juneteenth");
+        addHoliday(7, 4, "Independence Day");
+        addHoliday(11, 11, "Veterans Day");
+        addHoliday(12, 25, "Christmas Day");
+        addHoliday(1, getNthDay(1, 1, 3), "MLK Jr. Day");
+        addHoliday(2, getNthDay(2, 1, 3), "Presidents' Day");
+        addHoliday(5, getLastDay(5, 1), "Memorial Day");
+        addHoliday(9, getNthDay(9, 1, 1), "Labor Day");
+        addHoliday(10, getNthDay(10, 1, 2), "Columbus Day");
+        addHoliday(11, getNthDay(11, 4, 4), "Thanksgiving");
+        return holidays;
+    }
+
+    function openPrintWindow() {
+        const year = currentDate.getFullYear();
+        
+        let printHtml = `
+        <!DOCTYPE html>
+        <html lang="ko">
+        <head>
+            <meta charset="UTF-8">
+            <title>${year} 연중 계획표 (Portrait 한 장)</title>
+            <style>
+                @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap');
+                body { font-family: 'Noto Sans KR', sans-serif; padding: 0; margin: 0; color: #000; -webkit-print-color-adjust: exact; }
+                .container { width: 210mm; height: 297mm; padding: 6mm; box-sizing: border-box; display: flex; flex-direction: column; }
+                h1 { text-align: center; font-size: 18pt; margin: 0 0 5mm 0; border-bottom: 1.5pt solid #000; padding-bottom: 2mm; }
+                table { width: 100%; border-collapse: collapse; table-layout: fixed; flex-grow: 1; }
+                th, td { border: 0.5pt solid #000; padding: 1.2mm; font-size: 8pt; vertical-align: top; line-height: 1.2; word-break: break-all; }
+                th { background-color: #f0f0f0; font-weight: bold; text-align: center; vertical-align: middle; height: 8mm; }
+                .month-col { width: 10mm; background-color: #f0f0f0; text-align: center; vertical-align: middle; font-weight: bold; font-size: 9pt; }
+                .week-col { width: 18%; }
+                .event-item { margin-bottom: 0.8mm; display: block; border-bottom: 0.2pt dotted #bbb; padding-bottom: 0.4mm; }
+                @media print { @page { size: A4 portrait; margin: 0; } .container { margin: 0 auto; } }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>${year} 연중 계획표</h1>
+                <table>
+                    <thead><tr><th class="month-col">월</th><th class="week-col">제1주</th><th class="week-col">제2주</th><th class="week-col">제3주</th><th class="week-col">제4주</th><th class="week-col">제5주</th></tr></thead>
+                    <tbody>`;
+
+        for (let m = 1; m <= 12; m++) {
+            let weeksContent = ["", "", "", "", ""];
+            const firstDate = new Date(year, m - 1, 1);
+            const lastDate = new Date(year, m, 0).getDate();
+            const firstDayOffset = firstDate.getDay(); 
+
+            for (let d = 1; d <= lastDate; d++) {
+                const dateStr = `${year}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                const weekIdx = Math.floor((d + firstDayOffset - 1) / 7);
+                const dayEvents = eventsData[dateStr] || [];
+                if (dayEvents.length > 0) {
+                    const contentStr = dayEvents.map(ev => `<span class="event-item">${ev.text}</span>`).join('');
+                    if (weekIdx < 5) weeksContent[weekIdx] += contentStr;
+                    else weeksContent[4] += contentStr;
+                }
+            }
+            printHtml += `<tr><td class="month-col">${m}</td><td>${weeksContent[0]}</td><td>${weeksContent[1]}</td><td>${weeksContent[2]}</td><td>${weeksContent[3]}</td><td>${weeksContent[4]}</td></tr>`;
+        }
+
+        printHtml += `<tr style="background-color: #fafafa;"><td class="month-col" style="font-size: 8pt; padding: 1mm;">정기<br>행사</td><td></td><td></td><td></td><td></td><td></td></tr>
+            </tbody></table></div>
+            <script>window.onload = function() { window.print(); setTimeout(window.close, 1500); };<\/script>
+        </body></html>`;
+
+        const printWin = window.open('', '_blank');
+        printWin.document.write(printHtml);
+        printWin.document.close();
+
+        // 구글 시트로 데이터 즉시 전송 및 "연중 계획표" 시트 업데이트
+        syncData();
+    }
+
+    function initData() {
+        showLoading(true);
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+            google.script.run
+                .withSuccessHandler(function(data) {
+                    eventsData = (typeof data === 'string') ? JSON.parse(data) : (data || {});
+                    renderCalendars();
+                    showLoading(false);
+                })
+                .withFailureHandler(loadFromLocal)
+                .getEvents();
+        } else { loadFromLocal(); }
+    }
+
+    function loadFromLocal() {
+        const local = localStorage.getItem('church_events');
+        eventsData = local ? JSON.parse(local) : {};
+        renderCalendars();
+        showLoading(false);
+    }
+
+    function syncData() {
+        showLoading(true);
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+            google.script.run.withSuccessHandler(() => showLoading(false)).saveAllEvents(eventsData);
+        } else {
+            localStorage.setItem('church_events', JSON.stringify(eventsData));
+            showLoading(false);
+        }
+    }
+
+    function renderCalendars() {
+        const year = currentDate.getFullYear();
+        const yrText = document.getElementById('currentYearText');
+        const printText = document.getElementById('printBtnText');
+        if(yrText) yrText.textContent = year;
+        if(printText) printText.textContent = `${year} 연중 계획표`;
+
+        renderSingleCalendar(new Date(currentDate), "monthTitle1", "calendarDays1");
+        let nextMonth = new Date(currentDate);
+        nextMonth.setMonth(nextMonth.getMonth() + 1);
+        renderSingleCalendar(nextMonth, "monthTitle2", "calendarDays2");
+    }
+
+    function renderSingleCalendar(dateObj, titleId, gridId) {
+        const year = dateObj.getFullYear();
+        const month = dateObj.getMonth();
+        const holidays = getHolidays(year);
+        const titleEl = document.getElementById(titleId);
+        if(titleEl) titleEl.textContent = `${monthNames[month]} ${year}`;
+        
+        const firstDay = new Date(year, month, 1).getDay();
+        const lastDate = new Date(year, month + 1, 0).getDate();
+        const prevLastDate = new Date(year, month, 0).getDate();
+        const gridElement = document.getElementById(gridId);
+        if(!gridElement) return;
+        gridElement.innerHTML = '';
+
+        for (let i = firstDay; i > 0; i--) {
+            gridElement.innerHTML += `<div class="day-cell p-3 text-gray-200 bg-gray-50/40 text-sm">${prevLastDate - i + 1}</div>`;
+        }
+
+        const today = new Date();
+        for (let i = 1; i <= lastDate; i++) {
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+            const isToday = today.getFullYear() === year && today.getMonth() === month && today.getDate() === i;
+            const weekDay = new Date(year, month, i).getDay();
+            const holidayName = holidays[dateStr];
+            
+            let dayEvents = eventsData[dateStr] || [];
+            let eventsHtml = dayEvents.map(event => `
+                <div class="event-item event-default" onclick="editEvent(event, '${dateStr}', ${event.id})">
+                    <span class="truncate" title="${event.text}">${event.text}</span>
+                    <button class="delete-btn hover:text-red-600" onclick="deleteEvent(event, '${dateStr}', ${event.id})"><i class="fas fa-times"></i></button>
+                </div>
+            `).join('');
+
+            gridElement.innerHTML += `
+                <div class="day-cell p-3 bg-white flex flex-col cursor-pointer ${isToday ? 'today' : ''}" onclick="showInput('${dateStr}', this)">
+                    <div class="flex items-start justify-between gap-1">
+                        <span class="text-sm font-black ${weekDay === 0 || holidayName ? 'text-red-500' : weekDay === 6 ? 'text-sky-600' : 'text-slate-700'}">${i}</span>
+                        ${holidayName ? `<span class="holiday-label" title="${holidayName}">${holidayName}</span>` : ''}
+                        ${isToday ? '<div class="today-mark"></div>' : ''}
+                    </div>
+                    <div class="input-area mt-1"></div>
+                    <div class="mt-1 space-y-0.5 overflow-y-auto flex-grow max-h-[100px]">${eventsHtml}</div>
+                </div>
+            `;
+        }
+
+        const totalCells = firstDay + lastDate;
+        const remaining = (Math.ceil(totalCells / 7) * 7) - totalCells;
+        for (let i = 1; i <= remaining; i++) {
+            gridElement.innerHTML += `<div class="day-cell p-3 text-gray-200 bg-gray-50/40 text-sm">${i}</div>`;
+        }
+    }
+
+    function showInput(dateStr, cellElement) {
+        const container = cellElement.querySelector('.input-area');
+        if (container.querySelector('.inline-textarea')) return;
+        const textarea = document.createElement('textarea');
+        textarea.className = 'inline-textarea';
+        textarea.placeholder = '일정 입력...';
+        textarea.onblur = function() { if (this.value.trim()) saveMultiEvents(dateStr, this.value); this.remove(); };
+        textarea.onclick = e => e.stopPropagation();
+        container.appendChild(textarea);
+        textarea.focus();
+    }
+
+    function editEvent(e, dateStr, eventId) {
+        e.stopPropagation();
+        const eventObj = eventsData[dateStr].find(ev => ev.id === eventId);
+        if(!eventObj) return;
+        const target = e.currentTarget;
+        const textarea = document.createElement('textarea');
+        textarea.className = 'inline-textarea';
+        textarea.value = eventObj.text;
+        textarea.onblur = function() { 
+            const val = this.value.trim();
+            if (val) { eventObj.text = val; syncData(); }
+            renderCalendars();
+        };
+        textarea.onclick = e => e.stopPropagation();
+        target.style.display = 'none';
+        target.parentElement.insertBefore(textarea, target);
+        textarea.focus();
+    }
+
+    function saveMultiEvents(dateStr, fullText) {
+        const lines = fullText.split('\n').map(l => l.trim()).filter(l => l !== '');
+        if (!eventsData[dateStr]) eventsData[dateStr] = [];
+        lines.forEach(text => eventsData[dateStr].push({ id: Date.now() + Math.random(), text: text }));
+        renderCalendars(); syncData(); 
+    }
+
+    function deleteEvent(e, dateStr, eventId) {
+        e.stopPropagation();
+        eventsData[dateStr] = eventsData[dateStr].filter(ev => ev.id !== eventId);
+        if (!eventsData[dateStr].length) delete eventsData[dateStr];
+        renderCalendars(); syncData(); 
+    }
+
+    function changeMonth(offset) { currentDate.setMonth(currentDate.getMonth() + offset); renderCalendars(); }
+    function showLoading(s) { const l = document.getElementById('loadingOverlay'); if(l) l.style.display = s ? 'flex' : 'none'; }
+    
+    function enableYearEdit() {
+        const content = document.getElementById('yearContent');
+        const notice = document.getElementById('yearNotice');
+        content.innerHTML = `<input type="number" id="yearInput" placeholder="YYYY" onkeydown="handleYearKey(event)" onblur="disableYearEdit()">`;
+        notice.style.display = 'block';
+        const input = document.getElementById('yearInput');
+        input.value = currentDate.getFullYear();
+        input.focus();
+        input.select();
+    }
+    function handleYearKey(e) {
+        if (e.key === 'Enter') {
+            const val = parseInt(e.target.value);
+            if (!isNaN(val) && val > 0) {
+                e.target.onblur = null;
+                currentDate.setFullYear(val);
+                renderCalendars();
+                disableYearEdit();
+            }
+        } else if (e.key === 'Escape') {
+            e.target.onblur = null;
+            disableYearEdit();
+        }
+    }
+    function disableYearEdit() {
+        const content = document.getElementById('yearContent');
+        const notice = document.getElementById('yearNotice');
+        if (!content) return;
+        content.innerHTML = `<span id="currentYearText">${currentDate.getFullYear()}</span><i class="fas fa-calendar-alt text-sm text-sky-500 ml-1"></i>`;
+        notice.style.display = 'none';
+    }
+
+    window.onload = initData;
+</script>
+</body>
+</html>
